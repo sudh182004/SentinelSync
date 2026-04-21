@@ -19,7 +19,10 @@ export default function AdminDashboard() {
 
   const shifts = useQuery(api.shifts.getAllShiftsWithUsers) || [];
   const incidents = useQuery(api.incidents.getIncidents) || [];
+  const allGuards = useQuery(api.users.getAllGuards) || [];
+  
   const updateIncident = useMutation(api.incidents.updateIncidentStatus);
+  const updateSchedule = useMutation(api.users.updateSchedule);
 
   const [activeTab, setActiveTab] = useState('shifts');
   const [activeMetric, setActiveMetric] = useState(null); // For insights/graph
@@ -42,6 +45,33 @@ export default function AdminDashboard() {
   const handleResolveIncident = async (id, currentStatus) => {
     const newStatus = currentStatus === 'resolved' ? 'pending' : 'resolved';
     await updateIncident({ incidentId: id, status: newStatus });
+  };
+
+  const handleExportCSV = () => {
+    let csvContent = "";
+    if (activeTab === "shifts") {
+      csvContent = "data:text/csv;charset=utf-8,Guard Name,Date,Status,Late,Check-In,Check-Out,Total Work\n";
+      filteredShifts.forEach(shift => {
+        const checkIn = shift.checkInTime ? format(shift.checkInTime, 'h:mm a') : '-';
+        const checkOut = shift.checkOutTime ? format(shift.checkOutTime, 'h:mm a') : '-';
+        const total = formatDuration(shift.checkInTime, shift.checkOutTime);
+        const late = shift.isLate ? "Yes" : "No";
+        csvContent += `"${shift.guardName}","${shift.date}","${shift.displayStatus}","${late}","${checkIn}","${checkOut}","${total}"\n`;
+      });
+    } else {
+      csvContent = "data:text/csv;charset=utf-8,Guard Name,Category,Status,Time,Description\n";
+      filteredIncidents.forEach(inc => {
+        const time = format(inc.timestamp, 'MMM d yyyy h:mm a');
+        csvContent += `"${inc.guardName}","${inc.category}","${inc.status}","${time}","${inc.description.replace(/"/g, '""')}"\n`;
+      });
+    }
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `sentinelsync_export_${activeTab}_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Filtered Shifts Data
@@ -187,23 +217,37 @@ export default function AdminDashboard() {
         )}
 
         {/* TABS FOR SHIFTS OR INCIDENTS */}
-        <div className="flex gap-4 mb-4 border-b border-slate-200">
-          <button
-            onClick={() => setActiveTab('shifts')}
-            className={`pb-2 px-4 font-semibold text-lg transition-colors ${activeTab === 'shifts' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+        <div className="flex justify-between items-center mb-4 border-b border-slate-200">
+          <div className="flex gap-4">
+            <button
+              onClick={() => setActiveTab('shifts')}
+              className={`pb-2 px-4 font-semibold text-lg transition-colors ${activeTab === 'shifts' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Shift Logs
+            </button>
+            <button
+              onClick={() => setActiveTab('incidents')}
+              className={`pb-2 px-4 font-semibold text-lg transition-colors flex items-center gap-2 ${activeTab === 'incidents' ? 'border-b-2 border-red-600 text-red-600' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Incident Reports
+              {incidents.filter(i => i.status === 'pending').length > 0 &&
+                <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full shadow-sm animate-pulse">
+                  {incidents.filter(i => i.status === 'pending').length} New
+                </span>
+              }
+            </button>
+            <button
+              onClick={() => setActiveTab('guards')}
+              className={`pb-2 px-4 font-semibold text-lg transition-colors flex items-center gap-2 ${activeTab === 'guards' ? 'border-b-2 border-slate-800 text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Manage Guards
+            </button>
+          </div>
+          <button 
+            onClick={handleExportCSV}
+            className="pb-2 text-indigo-600 hover:text-indigo-800 text-sm font-bold flex items-center gap-1"
           >
-            Attendance & Shifts
-          </button>
-          <button
-            onClick={() => setActiveTab('incidents')}
-            className={`pb-2 px-4 font-semibold text-lg transition-colors flex items-center gap-2 ${activeTab === 'incidents' ? 'border-b-2 border-red-600 text-red-600' : 'text-slate-500 hover:text-slate-700'}`}
-          >
-            Incidents
-            {incidents.filter(i => i.status === 'pending').length > 0 &&
-              <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full shadow-sm animate-pulse">
-                {incidents.filter(i => i.status === 'pending').length} New
-              </span>
-            }
+            Export to CSV
           </button>
         </div>
 
@@ -264,6 +308,7 @@ export default function AdminDashboard() {
                         <tr key={shift._id} className="hover:bg-slate-50/70 transition-colors group">
                           <td className="px-6 py-4 font-medium text-slate-800 group-hover:text-indigo-700">
                             {shift.guardName}
+                            {shift.isLate && <span className="ml-2 bg-rose-100 text-rose-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Late</span>}
                           </td>
                           <td className="px-6 py-4 text-slate-600">
                             {format(new Date(shift.date + 'T00:00:00'), 'MMM d, yyyy')}
@@ -272,10 +317,20 @@ export default function AdminDashboard() {
                             <StatusBadge status={shift.displayStatus} />
                           </td>
                           <td className="px-6 py-4 text-slate-600 font-medium">
-                            {shift.checkInTime ? format(shift.checkInTime, 'h:mm a') : '-'}
+                            <div className="flex items-center gap-1">
+                              {shift.checkInTime ? format(shift.checkInTime, 'h:mm a') : '-'}
+                              {shift.checkInLocation && (
+                                <a href={`https://maps.google.com/?q=${shift.checkInLocation.lat},${shift.checkInLocation.lng}`} target="_blank" title="View Location" className="text-xl hover:scale-110 transition-transform">📍</a>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-4 text-slate-600 font-medium">
-                            {shift.checkOutTime ? format(shift.checkOutTime, 'h:mm a') : '-'}
+                            <div className="flex items-center gap-1">
+                              {shift.checkOutTime ? format(shift.checkOutTime, 'h:mm a') : '-'}
+                              {shift.checkOutLocation && (
+                                <a href={`https://maps.google.com/?q=${shift.checkOutLocation.lat},${shift.checkOutLocation.lng}`} target="_blank" title="View Location" className="text-xl hover:scale-110 transition-transform">📍</a>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-4 font-bold text-slate-700 text-right">
                             {formatDuration(shift.checkInTime, shift.checkOutTime)}
@@ -338,8 +393,11 @@ export default function AdminDashboard() {
                               <span className="text-xs px-2 py-0.5 rounded-md bg-slate-200 text-slate-700 font-bold uppercase tracking-wider">
                                 {inc.category}
                               </span>
-                              <span className="text-sm font-medium text-slate-400 whitespace-nowrap ml-auto sm:ml-0">
+                              <span className="text-sm font-medium text-slate-400 whitespace-nowrap ml-auto sm:ml-0 flex items-center gap-1">
                                 {format(inc.timestamp, 'MMM d • h:mm a')}
+                                {inc.location && (
+                                  <a href={`https://maps.google.com/?q=${inc.location.lat},${inc.location.lng}`} target="_blank" title="View Location" className="text-lg hover:scale-110 transition-transform">📍</a>
+                                )}
                               </span>
                             </div>
                             <p className="text-slate-700 text-sm mt-2 font-medium">{inc.description}</p>
@@ -360,6 +418,45 @@ export default function AdminDashboard() {
                     ))}
                   </div>
                 )}
+              </div>
+            </>
+          )}
+
+          {activeTab === 'guards' && (
+            <>
+              <div className="px-6 py-5 border-b border-slate-200 bg-slate-50/50">
+                <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2"><Users size={20} className="text-slate-600" /> Manage Guard Schedules</h3>
+                <p className="text-sm text-slate-500 mt-1">Set the strict expected check-in boundaries. Guards reporting after this threshold will automatically be flagged as late.</p>
+              </div>
+              <div className="p-4 sm:p-6 grid grid-cols-1 gap-4">
+                {allGuards.map((g) => (
+                  <div key={g._id} className="border border-slate-200 rounded-xl p-5 flex flex-col md:flex-row justify-between md:items-center gap-5 bg-white hover:border-indigo-200 transition-colors">
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-lg">{g.name}</h4>
+                      <p className="text-sm text-slate-500">{g.email}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-4 border-t md:border-t-0 pt-4 md:pt-0 border-slate-100">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Start Time</label>
+                        <input
+                          type="time"
+                          className="border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-slate-700"
+                          defaultValue={g.expectedStartTime || "09:00"}
+                          onBlur={(e) => updateSchedule({ userId: g._id, expectedStartTime: e.target.value, expectedEndTime: g.expectedEndTime || "17:00" })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">End Time</label>
+                        <input
+                          type="time"
+                          className="border border-slate-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-slate-700"
+                          defaultValue={g.expectedEndTime || "17:00"}
+                          onBlur={(e) => updateSchedule({ userId: g._id, expectedStartTime: g.expectedStartTime || "09:00", expectedEndTime: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </>
           )}

@@ -9,21 +9,29 @@ export const create = mutation({
     role: v.union(v.literal("admin"), v.literal("guard")),
   },
   handler: async (ctx, args) => {
-    const existing = await ctx.db
+    // Check if email already exists
+    const existingUser = await ctx.db
       .query("users")
       .withIndex("by_email", (q) => q.eq("email", args.email))
       .first();
-      
-    if (existing) {
-      throw new Error("User already exists");
+
+    if (existingUser) {
+      throw new Error("Email already in use");
     }
-    
-    return await ctx.db.insert("users", {
+
+    const userData = {
       name: args.name,
       email: args.email,
       password: args.password,
       role: args.role,
-    });
+    };
+
+    if (args.role === 'guard') {
+      userData.expectedStartTime = "09:00"; // 9 AM sharp
+      userData.expectedEndTime = "17:00";   // 5 PM
+    }
+
+    return await ctx.db.insert("users", userData);
   },
 });
 
@@ -60,5 +68,19 @@ export const getAllGuards = query({
   handler: async (ctx) => {
     const users = await ctx.db.query("users").collect();
     return users.filter(u => u.role === "guard");
+  }
+});
+
+export const updateSchedule = mutation({
+  args: {
+    userId: v.id("users"),
+    expectedStartTime: v.string(),
+    expectedEndTime: v.string()
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.patch(args.userId, {
+      expectedStartTime: args.expectedStartTime,
+      expectedEndTime: args.expectedEndTime
+    });
   }
 });

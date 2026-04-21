@@ -5,7 +5,8 @@ export const reportIncident = mutation({
   args: {
     guardId: v.id("users"),
     category: v.string(), // "theft", "violence", "medical", "other"
-    description: v.string()
+    description: v.string(),
+    location: v.optional(v.object({ lat: v.number(), lng: v.number() }))
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("incidents", {
@@ -13,7 +14,8 @@ export const reportIncident = mutation({
       timestamp: Date.now(),
       category: args.category,
       description: args.description,
-      status: "pending"
+      status: "pending",
+      location: args.location
     });
   }
 });

@@ -7,7 +7,10 @@ export const getTodayDateString = () => {
 };
 
 export const checkIn = mutation({
-  args: { guardId: v.id("users") },
+  args: { 
+    guardId: v.id("users"),
+    location: v.optional(v.object({ lat: v.number(), lng: v.number() }))
+  },
   handler: async (ctx, args) => {
     const today = getTodayDateString();
     
@@ -20,17 +23,36 @@ export const checkIn = mutation({
       throw new Error("Already checked in today.");
     }
 
+    const guard = await ctx.db.get(args.guardId);
+    let isLate = false;
+    const now = new Date();
+    
+    if (guard.expectedStartTime) {
+      const [expectedHour, expectedMinute] = guard.expectedStartTime.split(':').map(Number);
+      const expectedTime = new Date();
+      expectedTime.setHours(expectedHour, expectedMinute, 0, 0);
+      
+      if (now > expectedTime) {
+        isLate = true;
+      }
+    }
+
     return await ctx.db.insert("shifts", {
       guardId: args.guardId,
       date: today,
-      checkInTime: Date.now(),
-      status: "active"
+      checkInTime: now.getTime(),
+      status: "active",
+      checkInLocation: args.location,
+      isLate: isLate
     });
   }
 });
 
 export const checkOut = mutation({
-  args: { guardId: v.id("users") },
+  args: { 
+    guardId: v.id("users"),
+    location: v.optional(v.object({ lat: v.number(), lng: v.number() }))
+  },
   handler: async (ctx, args) => {
     const today = getTodayDateString();
     
@@ -49,7 +71,8 @@ export const checkOut = mutation({
 
     return await ctx.db.patch(existing._id, {
       checkOutTime: Date.now(),
-      status: "completed"
+      status: "completed",
+      checkOutLocation: args.location
     });
   }
 });

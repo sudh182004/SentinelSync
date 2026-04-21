@@ -24,10 +24,30 @@ export default function GuardDashboard() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showIncidentForm, setShowIncidentForm] = useState(false);
 
+  const getLocation = () => new Promise((resolve) => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => resolve({ lat: position.coords.latitude, lng: position.coords.longitude }),
+        () => {
+          alert("Location access is required for security tracking. Please allow location access in your browser and try again.");
+          resolve(null);
+        }
+      );
+    } else {
+      alert("Geolocation is not supported by this browser.");
+      resolve(null);
+    }
+  });
+
   const handleCheckIn = async () => {
     try {
       setIsSubmitting(true);
-      await checkIn({ guardId: user._id });
+      const loc = await getLocation();
+      if (!loc) {
+        setIsSubmitting(false);
+        return;
+      }
+      await checkIn({ guardId: user._id, location: loc });
     } catch (err) {
       alert(err.message || "Failed to check in");
     } finally {
@@ -38,7 +58,12 @@ export default function GuardDashboard() {
   const handleCheckOut = async () => {
     try {
       setIsSubmitting(true);
-      await checkOut({ guardId: user._id });
+      const loc = await getLocation();
+      if (!loc) {
+        setIsSubmitting(false);
+        return;
+      }
+      await checkOut({ guardId: user._id, location: loc });
     } catch (err) {
       alert(err.message || "Failed to check out");
     } finally {
@@ -52,10 +77,16 @@ export default function GuardDashboard() {
 
     try {
       setIsSubmitting(true);
+      const loc = await getLocation();
+      if (!loc) {
+        setIsSubmitting(false);
+        return;
+      }
       await reportIncident({
         guardId: user._id,
         category: incCategory,
-        description: incDesc.trim()
+        description: incDesc.trim(),
+        location: loc
       });
       alert("Incident reported successfully.");
       setIncDesc('');
