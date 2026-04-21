@@ -1,4 +1,3 @@
-
 # SentinelSync
 A full-stack, real-time security personnel monitoring system built with React, Vite, and Convex. Features role-based shift management, automatic attendance telemetry, active incident ticketing, and interactive data insights.
 
@@ -64,3 +63,4 @@ Open your browser at `http://localhost:5173`.
 ## 📄 License
 This project is open-source and available under the terms of the [MIT License](LICENSE).
 >>>>>>> 59ed4fe (Initial commit - SentinelSync Guard Monitoring App)
+ with new features
