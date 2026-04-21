@@ -1,7 +1,7 @@
-<<<<<<< HEAD
+
 # SentinelSync
 A full-stack, real-time security personnel monitoring system built with React, Vite, and Convex. Features role-based shift management, automatic attendance telemetry, active incident ticketing, and interactive data insights.
-=======
+
 # 🛡️ SentinelSync: Real-Time Guard Monitoring System
 
 SentinelSync is a modern, high-performance web application designed to track security personnel, log shift activity, and manage incident reports in real time. It utilizes a React-based frontend bundled with Vite, incredibly fast data synchronization powered by Convex, and sleek, responsive layouts crafted with Tailwind CSS v4.
